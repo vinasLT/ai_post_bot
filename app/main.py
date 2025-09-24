@@ -1,12 +1,11 @@
 import asyncio
 from aiogram import Dispatcher
-from aiogram.dispatcher import router
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 
-from app.config import settings
+from config import settings
 from app.handlers.generate_invite_code import invite_code_router
 from app.handlers.generate_posts_with_filters import generate_posts_with_filters_router
 from app.handlers.presets import presets_router
