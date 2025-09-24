@@ -28,12 +28,16 @@ class Settings(BaseSettings):
     # Rabbitmq
     RABBITMQ_URL: str = "amqp://guest:guest@localhost/"
     RABBITMQ_EXCHANGE_NAME: str = "events"
+    RABBITMQ_QUEUE_NAME: str = "post_generator_bot"
+
+    # telegram channel
+    TELEGRAM_CHANNEL_ID: str = '-1002852542718'
 
     # secret key
     SECRET_BOT_POST_GENERATOR_KEY: str = "secret-kjfh3h8974fhiosudfh9278fhko"
 
     # aiogram
-    TELEGRAM_BOT_TOKEN: str = ''
+    TELEGRAM_BOT_TOKEN: str = '8206187382:AAEDgBSyKRnxH-CBMNTFDCWeqPqalBrvqQ0'
 
     model_config = SettingsConfigDict(env_file="../.env")
 

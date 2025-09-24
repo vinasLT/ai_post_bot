@@ -10,7 +10,7 @@ from app.database.schemas.filter_preset import FilterPresetCreate
 from app.keyboards.inline.main_menu import MainMenuCallback, MainMenuActions
 from app.keyboards.inline.post_generator_filters import get_default_filters, create_main_filters_keyboard, \
     FilterCallback, FilterActions, create_filter_options_keyboard, FilterTypes, \
-    create_summary_text, back_to_filters_keyboard, get_human_readable_filter_type
+    create_summary_text, back_to_filters_keyboard, get_human_readable_filter_type, validate_filter_value
 from app.services.rabbit.pulisher import RabbitMQPublisher
 from app.states.filter_states import FilterStates
 
@@ -23,7 +23,6 @@ async def generate_posts_with_filters(query: CallbackQuery, callback_data: MainM
     """Initialize the filter selection process"""
     await query.answer()
     data = await state.get_data()
-    # Initialize filters
     filters = data.get('filters', get_default_filters())
     await state.update_data(filters=filters)
     await state.set_state(FilterStates.setting_filters)
@@ -31,11 +30,29 @@ async def generate_posts_with_filters(query: CallbackQuery, callback_data: MainM
     await query.message.edit_text(
         "🎛️ **Set up your search filters:**\n\n"
         "Click on each filter below to set its value. "
-        "You can edit any filter at any time before generating posts.\n\n"
-        "Required filters are marked with ⚠️",
+        "You can edit any filter at any time before generating posts.",
         reply_markup=create_main_filters_keyboard(filters),
         parse_mode="Markdown"
     )
+
+
+@generate_posts_with_filters_router.callback_query(
+    MainMenuCallback.filter(F.action == MainMenuActions.GENERATE_POST_WITH_FILTERS_IN_NEW_MESSAGE))
+async def generate_posts_with_filters(query: CallbackQuery, callback_data: MainMenuCallback, state: FSMContext):
+    await query.answer()
+    data = await state.get_data()
+    filters = data.get('filters', get_default_filters())
+    await state.update_data(filters=filters)
+    await state.set_state(FilterStates.setting_filters)
+
+    await query.message.answer(
+        "🎛️ **Set up your search filters:**\n\n"
+        "Click on each filter below to set its value. "
+        "You can edit any filter at any time before generating posts.",
+        reply_markup=create_main_filters_keyboard(filters),
+        parse_mode="Markdown"
+    )
+
 
 
 @generate_posts_with_filters_router.callback_query(
@@ -60,6 +77,26 @@ async def edit_filter(query: CallbackQuery, callback_data: FilterCallback, state
         parse_mode="Markdown"
     )
 
+
+@generate_posts_with_filters_router.callback_query(
+    FilterCallback.filter(F.action == FilterActions.SET_NONE))
+async def edit_filter(query: CallbackQuery, callback_data: FilterCallback, state: FSMContext):
+    await query.answer()
+
+    data = await state.get_data()
+    filters = data.get('filters', get_default_filters())
+
+    filters[callback_data.filter_type] = None
+
+    await state.update_data(filters=filters)
+
+    await query.message.edit_text(
+        "🎛️ **Set up your search filters:**\n\n"
+        "Click on each filter below to set its value. "
+        "You can edit any filter at any time before generating posts.",
+        reply_markup=create_main_filters_keyboard(filters),
+        parse_mode="Markdown"
+    )
 
 @generate_posts_with_filters_router.callback_query(
     FilterCallback.filter(F.action == FilterActions.SET))
@@ -118,8 +155,13 @@ async def handle_custom_input(message, state: FSMContext):
     data = await state.get_data()
     filters = data.get('filters', get_default_filters())
     current_filter_type = data.get('current_filter_type')
-
     if current_filter_type:
+        is_valid = validate_filter_value(FilterTypes(current_filter_type), message.text.strip())
+        if not is_valid:
+            await message.answer(
+                '❌ This Value must be number, try again'
+            )
+            return
         # Update the filter with user input
         filters[current_filter_type] = message.text.strip()
         await state.update_data(filters=filters)
@@ -208,7 +250,7 @@ async def confirm_and_generate(query: CallbackQuery, callback_data: FilterCallba
         f"✅ **Filters confirmed!**\n\n"
         f"{summary_text}\n"
         f"🚀 Starting post generation with these filters...\n\n"
-        f"This may take a few moments.",
+        f"This may take a 1-2 minutes or less! Please wait.",
         reply_markup=back_to_filters_keyboard()
     )
     async with get_db() as db:

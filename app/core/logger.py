@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from loguru import logger as loguru_logger
 import json
 
-from config import settings, Environment
+from app.config import settings, Environment
 
 
 class ConsoleLogger:

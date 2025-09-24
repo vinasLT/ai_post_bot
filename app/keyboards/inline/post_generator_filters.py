@@ -22,6 +22,7 @@ class FilterActions:
     SET = "set"
     EDIT = "edit"
     CUSTOM_INPUT = "custom"
+    SET_NONE = "set_none"
     BACK = "back"
     CONFIRM = "confirm"
     SUMMARY = "summary"
@@ -168,6 +169,11 @@ def create_filter_options_keyboard(filter_type: str, current_value: str | None =
     keyboard.append([InlineKeyboardButton(
         text="⬅️ Back to filters",
         callback_data=FilterCallback(action=FilterActions.BACK, filter_type="").pack()
+    )])
+
+    keyboard.append([InlineKeyboardButton(
+        text="✖️ Set None",
+        callback_data=FilterCallback(action=FilterActions.SET_NONE, filter_type=filter_type).pack()
     )])
 
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
