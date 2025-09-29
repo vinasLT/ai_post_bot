@@ -24,6 +24,7 @@ class FilterPreset(Base):
     document: Mapped[str | None] = mapped_column(nullable=True)
     transmission: Mapped[str | None] = mapped_column(nullable=True)
     status: Mapped[str | None] = mapped_column(nullable=True)
+    auction_date: Mapped[str | None] = mapped_column(nullable=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("user.id"), nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False,
