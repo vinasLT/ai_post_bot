@@ -27,7 +27,7 @@ async def main():
     dp.include_router(presets_router)
     dp.include_router(publish_post_router)
 
-    await dp.start_polling(bot, skip_updates=True)
+    await dp.start_polling(bot)
 
 
 if __name__ == '__main__':

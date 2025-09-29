@@ -10,7 +10,8 @@ from app.database.schemas.filter_preset import FilterPresetCreate
 from app.keyboards.inline.main_menu import MainMenuCallback, MainMenuActions
 from app.keyboards.inline.post_generator_filters import get_default_filters, create_main_filters_keyboard, \
     FilterCallback, FilterActions, create_filter_options_keyboard, FilterTypes, \
-    create_summary_text, back_to_filters_keyboard, get_human_readable_filter_type, validate_filter_value
+    create_summary_text, back_to_filters_keyboard, get_human_readable_filter_type, validate_filter_value, \
+    transform_auction_date_to_range
 from app.services.rabbit.pulisher import RabbitMQPublisher
 from app.states.filter_states import FilterStates
 
@@ -259,6 +260,8 @@ async def confirm_and_generate(query: CallbackQuery, callback_data: FilterCallba
 
     publisher = RabbitMQPublisher()
     await publisher.connect()
+    auction_date = filters.get('auction_date')
+    filters.update(transform_auction_date_to_range(auction_date))
     payload = {
         'filters': filters,
         'user_uuid': user.user_uuid
@@ -268,7 +271,7 @@ async def confirm_and_generate(query: CallbackQuery, callback_data: FilterCallba
 
 
 async def is_all_required_filters(message: Message, filters: dict) -> bool:
-    required_filters = [FilterTypes.SITE, FilterTypes.MAKE, FilterTypes.MODEL, FilterTypes.YEAR_FROM,
+    required_filters = [FilterTypes.SITE, FilterTypes.MAKE, FilterTypes.YEAR_FROM,
                         FilterTypes.YEAR_TO]
     missing_filters = [get_human_readable_filter_type(f) for f in required_filters if not filters.get(f)]
 

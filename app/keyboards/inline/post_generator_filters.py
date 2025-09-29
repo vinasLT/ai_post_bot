@@ -1,3 +1,4 @@
+import datetime
 from enum import Enum
 from typing import Any
 
@@ -43,9 +44,10 @@ class FilterTypes(str, Enum):
     DOCUMENT = "document"
     TRANSMISSION = "transmission"
     STATUS = "status"
+    AUCTION_DATE = "auction_date"
 
 def get_human_readable_filter_type(filter_type: FilterTypes) -> str:
-    """Get human-readable filter type"""
+    """Get a human-readable filter type"""
     names = {
         FilterTypes.SITE: "🌐 Site",
         FilterTypes.MAKE: "🚗 Make",
@@ -56,7 +58,8 @@ def get_human_readable_filter_type(filter_type: FilterTypes) -> str:
         FilterTypes.ODO_TO: "🛣️ Odometer to",
         FilterTypes.DOCUMENT: '📄 Document',
         FilterTypes.TRANSMISSION: '⚙️ Transmission',
-        FilterTypes.STATUS: '🔋 Status'
+        FilterTypes.STATUS: '🔋 Status',
+        FilterTypes.AUCTION_DATE: '⏳ Auction date',
     }
     return names.get(filter_type)
 
@@ -65,12 +68,13 @@ FILTER_OPTIONS = {
     FilterTypes.SITE: ["IAAI", "COPART"],
     FilterTypes.DOCUMENT: ["Salvage", "Clean"],
     FilterTypes.TRANSMISSION: ["Automatic", "Manual"],
-    FilterTypes.STATUS: ["Run & Drive", "Starts", "Stationary"]
+    FilterTypes.STATUS: ["Run & Drive", "Starts", "Stationary"],
+    FilterTypes.AUCTION_DATE: ["Only today", "From Today to Tomorrow"]
 }
 
 COMMON_MAKES = [
     "BMW", "Mercedes-Benz", "Audi", "Toyota", "Honda", "Ford",
-    "Chevrolet", "Nissan", "Hyundai", "Volkswagen", "Other"
+    "Chevrolet", "Nissan", "Hyundai", "Volkswagen"
 ]
 
 
@@ -88,8 +92,19 @@ def get_default_filters() -> dict[str, Any]:
         FilterTypes.ODO_TO: None,
         FilterTypes.DOCUMENT: None,
         FilterTypes.TRANSMISSION: None,
-        FilterTypes.STATUS: None
+        FilterTypes.STATUS: None,
+        FilterTypes.AUCTION_DATE: None,
     }
+
+def transform_auction_date_to_range(auction_date: str) -> dict[str, Any]:
+    """Transform auction date to range"""
+    today = datetime.date.today()
+    if auction_date == "Only today":
+        return {'auction_date_from': str(today), 'auction_date_to': str(today)}
+    elif auction_date == "From Today to Tomorrow":
+        return {'auction_date_from': str(today), 'auction_date_to': str(today + datetime.timedelta(days=1))}
+    else:
+        return {'auction_date_from': None, 'auction_date_to': None}
 
 
 def create_main_filters_keyboard(filters: dict[str, Any]) -> InlineKeyboardMarkup:

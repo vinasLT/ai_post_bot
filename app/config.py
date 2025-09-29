@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     SECRET_BOT_POST_GENERATOR_KEY: str = "secret-kjfh3h8974fhiosudfh9278fhko"
 
     # aiogram
-    TELEGRAM_BOT_TOKEN: str = '8206187382:AAEDgBSyKRnxH-CBMNTFDCWeqPqalBrvqQ0'
+    TELEGRAM_BOT_TOKEN: str = '6710436824:AAFoMfr1BN6UTJEJdynntjjGHLypTBI-2A8'
 
     model_config = SettingsConfigDict(env_file="../.env")
 
