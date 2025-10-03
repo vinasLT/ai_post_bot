@@ -114,7 +114,7 @@ def create_main_filters_keyboard(filters: dict[str, Any]) -> InlineKeyboardMarku
     for filter_type in FilterTypes:
         filter_text = get_human_readable_filter_type(filter_type)
         keyboard.append([InlineKeyboardButton(
-            text=f'{filter_text}: {filters[filter_type] or "Not set"}',
+            text=f'{filter_text}: {filters.get(filter_type) or "Not set"}',
             callback_data=FilterCallback(action=FilterActions.EDIT, filter_type=filter_type).pack()
         )])
 
