@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # telegram channel
     TELEGRAM_CHANNEL_ID: str = '-1002852542718'
 
+    #rpc_server
+    RPC_AUCTION_API_URL: str = "localhost:50052"
+
+
     # secret key
     SECRET_BOT_POST_GENERATOR_KEY: str = "secret-kjfh3h8974fhiosudfh9278fhko"
 

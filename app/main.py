@@ -7,6 +7,7 @@ from aiogram.enums import ParseMode
 
 from app.config import settings
 from app.handlers.generate_invite_code import invite_code_router
+from app.handlers.generate_post_manually import generate_post_manually_router
 from app.handlers.generate_posts_with_filters import generate_posts_with_filters_router
 from app.handlers.presets import presets_router
 from app.handlers.publish_post import publish_post_router
@@ -26,7 +27,7 @@ async def main():
     dp.include_router(generate_posts_with_filters_router)
     dp.include_router(presets_router)
     dp.include_router(publish_post_router)
-
+    dp.include_router(generate_post_manually_router)
     await dp.start_polling(bot)
 
 

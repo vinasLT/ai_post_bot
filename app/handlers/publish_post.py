@@ -1,6 +1,7 @@
 from aiogram import Router
 from aiogram.types import CallbackQuery
 
+from app.keyboards.inline.main_menu import main_menu_keyboard
 from app.keyboards.inline.post_this_post import PostThisPostCallback
 from app.services.rabbit.pulisher import RabbitMQPublisher
 
@@ -14,7 +15,7 @@ async def publish_post(query: CallbackQuery, callback_data: PostThisPostCallback
             'post_id': callback_data.post_id
         }
         await publisher.publish('posts_bot.publish_post', data)
-        await query.message.edit_text("Post published!", reply_markup=None)
+        await query.message.edit_text("Post published!", reply_markup=main_menu_keyboard())
         await query.answer()
     except Exception as e:
         print(e)

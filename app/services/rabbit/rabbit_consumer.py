@@ -16,6 +16,7 @@ class PostsBotRoutingKeys(str, Enum):
     POSTS_SERVICE_GENERATED_POSTS = "posts_service.generated_posts"
     POSTS_SERVICE_PUBLISH_POST = 'posts_service.publish_post'
     POSTS_SERVICE_ERROR = 'posts_service.error'
+    POSTS_SERVICE_MANUALLY_GENERATED_POST = 'posts_service.manually_generated_post'
 
 
 class RabbitPostsBotConsumer(RabbitBaseService):
@@ -30,9 +31,10 @@ class RabbitPostsBotConsumer(RabbitBaseService):
         else:
             return
 
-        if route == PostsBotRoutingKeys.POSTS_SERVICE_GENERATED_POSTS:
+        if route in [PostsBotRoutingKeys.POSTS_SERVICE_GENERATED_POSTS, PostsBotRoutingKeys.POSTS_SERVICE_MANUALLY_GENERATED_POST] :
             posts_service = PostProcessService(payload)
             await posts_service.process_posts()
+
         elif route == PostsBotRoutingKeys.POSTS_SERVICE_PUBLISH_POST:
             text = payload.get('text')
             images = payload.get('images')

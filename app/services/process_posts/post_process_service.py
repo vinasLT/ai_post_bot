@@ -1,5 +1,6 @@
 from typing import Any, List
 
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InputMediaPhoto
 
 from app.database.crud.user import UserService
@@ -25,10 +26,12 @@ class PostProcessService:
         if not user:
             return
         posts = self.payload.get('posts') or []
+        message_id = self.payload.get('message_id')
         for post in posts:
             images: List[str] = post.get('images') or []
             text: str = post.get('text') or ''
-            keyboard = post_this_post_keyboard(post_id=post.get('post_id'), request_id=self.request_id)
+            keyboard = post_this_post_keyboard(post_id=post.get('post_id'), request_id=self.request_id,
+                                               is_manual_generation=message_id is not None)
             if images:
                 media_group = []
                 for i, image_url in enumerate(images):
@@ -36,10 +39,23 @@ class PostProcessService:
                         media_group.append(InputMediaPhoto(media=image_url, caption=text, parse_mode="HTML"))
                     else:
                         media_group.append(InputMediaPhoto(media=image_url))
+                if message_id:
+                    try:
+                        await bot.delete_message(chat_id=user.telegram_id, message_id=message_id)
+                    except Exception:
+                        pass
                 await bot.send_media_group(chat_id=user.telegram_id, media=media_group)
-
                 await bot.send_message(chat_id=user.telegram_id, text="👆", reply_markup=keyboard)
             elif text:
-                await bot.send_message(chat_id=user.telegram_id, text=text, reply_markup=keyboard, parse_mode="HTML")
+                if message_id:
+                    try:
+                        await bot.edit_message_text(chat_id=user.telegram_id, message_id=message_id, text=text, parse_mode="HTML", reply_markup=keyboard)
+                    except TelegramBadRequest as e:
+                        if "message is not modified" in str(e).lower():
+                            pass
+                        else:
+                            raise
+                else:
+                    await bot.send_message(chat_id=user.telegram_id, text=text, reply_markup=keyboard, parse_mode="HTML")
 
 
