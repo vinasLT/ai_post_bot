@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, List
 
 from aiogram.exceptions import TelegramBadRequest
@@ -41,21 +42,28 @@ class PostProcessService:
                         media_group.append(InputMediaPhoto(media=image_url))
                 if message_id:
                     try:
+                        await asyncio.sleep(1)
                         await bot.delete_message(chat_id=user.telegram_id, message_id=message_id)
                     except Exception:
                         pass
+                await asyncio.sleep(1)
                 await bot.send_media_group(chat_id=user.telegram_id, media=media_group)
+                await asyncio.sleep(1)
                 await bot.send_message(chat_id=user.telegram_id, text="👆", reply_markup=keyboard)
             elif text:
                 if message_id:
                     try:
-                        await bot.edit_message_text(chat_id=user.telegram_id, message_id=message_id, text=text, parse_mode="HTML", reply_markup=keyboard)
+                        await asyncio.sleep(1)
+                        await bot.edit_message_text(chat_id=user.telegram_id, message_id=message_id, text=text,
+                                                    parse_mode="HTML", reply_markup=keyboard)
                     except TelegramBadRequest as e:
                         if "message is not modified" in str(e).lower():
                             pass
                         else:
                             raise
                 else:
-                    await bot.send_message(chat_id=user.telegram_id, text=text, reply_markup=keyboard, parse_mode="HTML")
+                    await asyncio.sleep(1)
+                    await bot.send_message(chat_id=user.telegram_id, text=text, reply_markup=keyboard,
+                                           parse_mode="HTML")
 
 

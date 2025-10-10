@@ -17,7 +17,7 @@ dependencies = [
     "psycopg2-binary (>=2.9.10,<3.0.0)",
     "asyncpg (>=0.30.0,<0.31.0)",
     "grpcio (>=1.75.1,<2.0.0)",
-    "protobuf (>=6.32.1,<7.0.0)"
+    "protobuf (>=6.32.1,<7.0.0)",
 ]
 
 

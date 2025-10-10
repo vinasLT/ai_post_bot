@@ -264,6 +264,7 @@ async def confirm_and_generate(query: CallbackQuery, callback_data: FilterCallba
     filters.update(transform_auction_date_to_range(auction_date))
     payload = {
         'filters': filters,
+        'editable_message_id': query.message.message_id,
         'user_uuid': user.user_uuid
     }
     await publisher.publish(routing_key='posts_bot.generate_post.with_filters', payload=payload)

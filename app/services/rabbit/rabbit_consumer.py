@@ -17,6 +17,7 @@ class PostsBotRoutingKeys(str, Enum):
     POSTS_SERVICE_PUBLISH_POST = 'posts_service.publish_post'
     POSTS_SERVICE_ERROR = 'posts_service.error'
     POSTS_SERVICE_MANUALLY_GENERATED_POST = 'posts_service.manually_generated_post'
+    POSTS_SERVICE_UPDATE_MESSAGE = 'posts_service.update_message'
 
 
 class RabbitPostsBotConsumer(RabbitBaseService):
@@ -34,7 +35,18 @@ class RabbitPostsBotConsumer(RabbitBaseService):
         if route in [PostsBotRoutingKeys.POSTS_SERVICE_GENERATED_POSTS, PostsBotRoutingKeys.POSTS_SERVICE_MANUALLY_GENERATED_POST] :
             posts_service = PostProcessService(payload)
             await posts_service.process_posts()
-
+        elif route == PostsBotRoutingKeys.POSTS_SERVICE_UPDATE_MESSAGE:
+            try:
+                async with get_db() as db:
+                    user_service = UserService(db)
+                    user = await user_service.get_by_uuid(payload.get('user_uuid'))
+                await bot.edit_message_text(
+                    text=payload.get('message'),
+                    chat_id=user.telegram_id,
+                    message_id=payload.get('message_id')
+                )
+            except Exception as e:
+                logger.warning(f"Error while updating message: {e}")
         elif route == PostsBotRoutingKeys.POSTS_SERVICE_PUBLISH_POST:
             text = payload.get('text')
             images = payload.get('images')
