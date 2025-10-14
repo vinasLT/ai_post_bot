@@ -1,8 +1,10 @@
+import base64
 import json
 from enum import Enum
 
 from aio_pika.abc import AbstractIncomingMessage
-from aiogram.types import InputMediaPhoto
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.types import InputMediaPhoto, InputFile, BufferedInputFile
 
 from app.config import settings
 from app.core.logger import logger
@@ -18,6 +20,7 @@ class PostsBotRoutingKeys(str, Enum):
     POSTS_SERVICE_ERROR = 'posts_service.error'
     POSTS_SERVICE_MANUALLY_GENERATED_POST = 'posts_service.manually_generated_post'
     POSTS_SERVICE_UPDATE_MESSAGE = 'posts_service.update_message'
+    POSTS_SERVICE_IMAGE_GENERATED = 'posts_service.image_generated'
 
 
 class RabbitPostsBotConsumer(RabbitBaseService):
@@ -47,6 +50,25 @@ class RabbitPostsBotConsumer(RabbitBaseService):
                 )
             except Exception as e:
                 logger.warning(f"Error while updating message: {e}")
+        elif route == PostsBotRoutingKeys.POSTS_SERVICE_IMAGE_GENERATED:
+            image: bytes = payload["image"]
+            message_id: int = payload["message_id"]
+            user_uuid: str = payload["user_uuid"]
+            image_bytes = base64.b64decode(image)
+
+            async with get_db() as db:
+                user_service = UserService(db)
+                user = await user_service.get_by_uuid(user_uuid)
+
+            try:
+                await bot.delete_message(chat_id=user.telegram_id, message_id=message_id)
+            except TelegramBadRequest:
+                pass
+
+            photo = BufferedInputFile(image_bytes, "image.png")
+            await bot.send_photo(chat_id=user.telegram_id, photo=photo)
+
+
         elif route == PostsBotRoutingKeys.POSTS_SERVICE_PUBLISH_POST:
             text = payload.get('text')
             images = payload.get('images')

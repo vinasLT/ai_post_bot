@@ -1,4 +1,4 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.types import CallbackQuery
 
 from app.keyboards.inline.main_menu import main_menu_keyboard
@@ -7,7 +7,7 @@ from app.services.rabbit.pulisher import RabbitMQPublisher
 
 publish_post_router = Router()
 
-@publish_post_router.callback_query(PostThisPostCallback.filter())
+@publish_post_router.callback_query(PostThisPostCallback.filter(F.add_comment == False))
 async def publish_post(query: CallbackQuery, callback_data: PostThisPostCallback):
     try:
         publisher = RabbitMQPublisher()
