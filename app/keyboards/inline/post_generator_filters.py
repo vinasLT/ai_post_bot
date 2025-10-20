@@ -44,6 +44,7 @@ class FilterTypes(str, Enum):
     DOCUMENT = "document"
     TRANSMISSION = "transmission"
     STATUS = "status"
+    DRIVE = 'drive'
     AUCTION_DATE = "auction_date"
 
 def get_human_readable_filter_type(filter_type: FilterTypes) -> str:
@@ -59,6 +60,7 @@ def get_human_readable_filter_type(filter_type: FilterTypes) -> str:
         FilterTypes.DOCUMENT: '📄 Document',
         FilterTypes.TRANSMISSION: '⚙️ Transmission',
         FilterTypes.STATUS: '🔋 Status',
+        FilterTypes.DRIVE: '🛞 Drive',
         FilterTypes.AUCTION_DATE: '⏳ Auction date',
     }
     return names.get(filter_type)
@@ -69,6 +71,7 @@ FILTER_OPTIONS = {
     FilterTypes.DOCUMENT: ["Salvage", "Clean"],
     FilterTypes.TRANSMISSION: ["Automatic", "Manual"],
     FilterTypes.STATUS: ["Run & Drive", "Starts", "Stationary"],
+    FilterTypes.DRIVE: ['All Wheel Drive', 'Rear Wheel Drive', 'Front Wheel Drive'],
     FilterTypes.AUCTION_DATE: ["Only today", "From Today to Tomorrow"]
 }
 
@@ -93,6 +96,7 @@ def get_default_filters() -> dict[str, Any]:
         FilterTypes.DOCUMENT: None,
         FilterTypes.TRANSMISSION: None,
         FilterTypes.STATUS: None,
+        FilterTypes.DRIVE: None,
         FilterTypes.AUCTION_DATE: None,
     }
 
