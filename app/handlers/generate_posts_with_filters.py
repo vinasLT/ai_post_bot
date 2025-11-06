@@ -160,7 +160,7 @@ async def handle_custom_input(message, state: FSMContext):
         is_valid = validate_filter_value(FilterTypes(current_filter_type), message.text.strip())
         if not is_valid:
             await message.answer(
-                '❌ This Value must be number, try again'
+                '❌ This Value must be number or for time HH.MM, try again'
             )
             return
         # Update the filter with user input

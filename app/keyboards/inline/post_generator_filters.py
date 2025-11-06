@@ -46,6 +46,7 @@ class FilterTypes(str, Enum):
     STATUS = "status"
     DRIVE = 'drive'
     AUCTION_DATE = "auction_date"
+    AUCTION_TIME = "auction_time"
 
 def get_human_readable_filter_type(filter_type: FilterTypes) -> str:
     """Get a human-readable filter type"""
@@ -62,6 +63,7 @@ def get_human_readable_filter_type(filter_type: FilterTypes) -> str:
         FilterTypes.STATUS: '🔋 Status',
         FilterTypes.DRIVE: '🛞 Drive',
         FilterTypes.AUCTION_DATE: '⏳ Auction date',
+        FilterTypes.AUCTION_TIME: '🕓 Auction time UTC+0 (HH.MM)',
     }
     return names.get(filter_type)
 
@@ -72,7 +74,7 @@ FILTER_OPTIONS = {
     FilterTypes.TRANSMISSION: ["Automatic", "Manual"],
     FilterTypes.STATUS: ["Run & Drive", "Starts", "Stationary"],
     FilterTypes.DRIVE: ['All Wheel Drive', 'Rear Wheel Drive', 'Front Wheel Drive'],
-    FilterTypes.AUCTION_DATE: ["Only today", "From Today to Tomorrow"]
+    FilterTypes.AUCTION_DATE: ["Only today", "From Today to Tomorrow"],
 }
 
 COMMON_MAKES = [
@@ -98,6 +100,7 @@ def get_default_filters() -> dict[str, Any]:
         FilterTypes.STATUS: None,
         FilterTypes.DRIVE: None,
         FilterTypes.AUCTION_DATE: None,
+        FilterTypes.AUCTION_TIME: None,
     }
 
 def transform_auction_date_to_range(auction_date: str) -> dict[str, Any]:
@@ -228,6 +231,10 @@ INTEGER_FILTER_TYPES = {
     FilterTypes.ODO_TO
 }
 
+TIME_FILTER_TYPES = {
+    FilterTypes.AUCTION_TIME
+}
+
 def is_integer_filter_type(filter_type: str | FilterTypes) -> bool:
     """Check if the filter type expects an integer value"""
     try:
@@ -236,12 +243,26 @@ def is_integer_filter_type(filter_type: str | FilterTypes) -> bool:
         return False
     return filter_type_enum in INTEGER_FILTER_TYPES
 
+def is_time_filter_type(filter_type: str | FilterTypes) -> bool:
+    """Check if the filter type expects an HH:MM time string"""
+    try:
+        filter_type_enum = FilterTypes(filter_type)
+    except ValueError:
+        return False
+    return filter_type_enum in TIME_FILTER_TYPES
+
 
 def validate_filter_value(filter_type: str | FilterTypes, value: str) -> bool:
     """Validate the value for the given filter type. Integer fields must be integers."""
     if is_integer_filter_type(filter_type):
         try:
             int(value)
+            return True
+        except (ValueError, TypeError):
+            return False
+    if is_time_filter_type(filter_type):
+        try:
+            datetime.datetime.strptime(value, "%H.%M")
             return True
         except (ValueError, TypeError):
             return False
