@@ -6,7 +6,6 @@ from app.database.crud.user import UserService
 from app.database.db.session import get_db
 from app.keyboards.inline.choose_auction import choose_auction_keyboard, ChooseAuctionCallback
 from app.keyboards.inline.main_menu import MainMenuActions, MainMenuCallback
-from app.keyboards.inline.post_generator_filters import FilterCallback, FilterActions
 from app.keyboards.inline.post_this_post import PostThisPostCallback, GeneratePostImageCallback
 from app.rpc_client.auction_api import ApiRpcClient
 from app.services.rabbit.pulisher import RabbitMQPublisher
@@ -27,23 +26,9 @@ async def process_lot_id(message: Message, state: FSMContext):
     vin_or_lot_id = message.text
     async with ApiRpcClient() as client:
         lot = await client.get_lot_by_vin_or_lot_id(vin_or_lot_id)
-        if len(lot.lot) >= 2:
+        if lot.lot:
             await message.answer('Choose auction:', reply_markup=choose_auction_keyboard(vin_or_lot_id))
             await state.set_state(GenerateManuallyStates.set_auction)
-        elif len(lot.lot) == 1:
-            async with get_db() as db:
-                user_service = UserService(db)
-                user = await user_service.get_by_telegram_id(str(message.from_user.id))
-            generating_message = await message.answer("Generating post...")
-            payload = {
-                'lot_id': lot.lot[0].lot_id,
-                'site': lot.lot[0].base_site,
-                'user_uuid': user.user_uuid,
-                'message_id': generating_message.message_id
-            }
-            publisher = RabbitMQPublisher()
-            await publisher.connect()
-            await publisher.publish('posts_bot.generate_post.manually', payload)
         else:
             await message.answer("❌ No such lot or VIN\n"
                                  "Send another VIN or Lot ID:")
