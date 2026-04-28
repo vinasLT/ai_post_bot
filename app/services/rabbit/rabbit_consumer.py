@@ -4,6 +4,7 @@ import json
 from enum import Enum
 
 from aio_pika.abc import AbstractIncomingMessage
+from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InputMediaPhoto, InputFile, BufferedInputFile
 
@@ -44,11 +45,17 @@ class RabbitPostsBotConsumer(RabbitBaseService):
                 async with get_db() as db:
                     user_service = UserService(db)
                     user = await user_service.get_by_uuid(payload.get('user_uuid'))
+                # Disable bot default Markdown — progress text can contain _, etc.
                 await bot.edit_message_text(
                     text=payload.get('message'),
                     chat_id=user.telegram_id,
-                    message_id=payload.get('message_id')
+                    message_id=payload.get('message_id'),
+                    parse_mode=None,
                 )
+            except TelegramBadRequest as e:
+                if "message is not modified" in str(e).lower():
+                    return
+                logger.warning(f"Error while updating message: {e}")
             except Exception as e:
                 logger.warning(f"Error while updating message: {e}")
         elif route == PostsBotRoutingKeys.POSTS_SERVICE_IMAGE_GENERATED:
@@ -112,15 +119,25 @@ class RabbitPostsBotConsumer(RabbitBaseService):
             async with get_db() as db:
                 user_service = UserService(db)
                 user = await user_service.get_by_uuid(payload.get('user_uuid'))
-            error = payload.get('error_message')
+            if user is None:
+                logger.error(
+                    "posts_service.error: user not found",
+                    extra={"user_uuid": payload.get('user_uuid')},
+                )
+                return
+            error = payload.get('error_message') or ''
             request_id = payload.get('request_id')
-
-            text = (f"❌ An error occurred while processing your request:\n"
-                    f"Message: {error}\n"
-                    f"Request ID: {request_id}\n")
+            # LLM/runtime errors may contain em dashes, <>&, etc. Telegram HTML still rejects some
+            # valid-looking payloads ("can't parse entities"); plain text always delivers.
+            text = (
+                "❌ An error occurred while processing your request:\n"
+                f"Message: {error}\n"
+                f"Request ID: {request_id}\n"
+            )
             await bot.send_message(
                 chat_id=user.telegram_id,
-                text=text
+                text=text,
+                parse_mode=None,
             )
 
 

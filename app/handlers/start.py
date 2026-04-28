@@ -59,3 +59,7 @@ async def start_command_without_link(message: Message):
         if user:
             await message.answer("You are already registered.", reply_markup=main_menu_keyboard())
             return
+        await message.answer(
+            "Registration requires an invite link. Open the bot from a link like "
+            "https://t.me/BotUsername?start=… (ask an admin for a new invite if needed)."
+        )
