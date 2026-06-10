@@ -16,7 +16,7 @@ async def publish_post(query: CallbackQuery, callback_data: PostThisPostCallback
         }
         await publisher.publish('posts_bot.publish_post', data)
         await query.message.edit_text(
-            "Published to forum topics (all languages).",
+            "Publishing to forum topics…",
             reply_markup=main_menu_keyboard(),
         )
         await query.answer()

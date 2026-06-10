@@ -1,5 +1,6 @@
 import json
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from pydantic import field_validator
@@ -41,6 +42,27 @@ def parse_forum_topic_ids_json(raw: str) -> tuple[int, ...]:
     raise ValueError("TELEGRAM_TOPIC_IDS_JSON must be a JSON array or object")
 
 
+def parse_forum_topic_ids_by_lang(raw: str) -> dict[str, int]:
+    """Map language code to forum topic thread id."""
+    text = (raw or "").strip()
+    if not text:
+        raise ValueError("TELEGRAM_TOPIC_IDS_JSON is empty")
+    data: Any = json.loads(text)
+    if isinstance(data, dict):
+        missing = [k for k in FORUM_TOPIC_LANG_ORDER if k not in data]
+        if missing:
+            raise ValueError(
+                "TELEGRAM_TOPIC_IDS_JSON object missing keys: "
+                + ", ".join(missing)
+                + f"; expected: {', '.join(FORUM_TOPIC_LANG_ORDER)}"
+            )
+        return {lang: int(data[lang]) for lang in FORUM_TOPIC_LANG_ORDER}
+    if isinstance(data, list):
+        thread_ids = parse_forum_topic_ids_json(raw)
+        return dict(zip(FORUM_TOPIC_LANG_ORDER, thread_ids))
+    raise ValueError("TELEGRAM_TOPIC_IDS_JSON must be a JSON array or object")
+
+
 class Settings(BaseSettings):
     # Application
     APP_NAME: str = "post-generator-bot"
@@ -78,6 +100,10 @@ class Settings(BaseSettings):
     def forum_topic_thread_ids_ordered(self) -> tuple[int, ...]:
         return parse_forum_topic_ids_json(self.TELEGRAM_TOPIC_IDS_JSON)
 
+    @property
+    def forum_topic_ids_by_lang(self) -> dict[str, int]:
+        return parse_forum_topic_ids_by_lang(self.TELEGRAM_TOPIC_IDS_JSON)
+
     # rpc_server
     RPC_AUCTION_API_URL: str = "localhost:50052"
 
@@ -87,7 +113,7 @@ class Settings(BaseSettings):
     # aiogram
     TELEGRAM_BOT_TOKEN: str = "6710436824:AAFBqoqwfcEBNxA1LsjajoT1V2y5DGFXBmo"
 
-    model_config = SettingsConfigDict(env_file="../.env")
+    model_config = SettingsConfigDict(env_file=Path(__file__).resolve().parent.parent / ".env")
 
 
 settings = Settings()

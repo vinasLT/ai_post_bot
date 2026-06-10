@@ -1,18 +1,16 @@
-import asyncio
 import base64
 import json
 from enum import Enum
 
 from aio_pika.abc import AbstractIncomingMessage
-from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.types import InputMediaPhoto, InputFile, BufferedInputFile
+from aiogram.types import BufferedInputFile
 
-from app.config import settings
 from app.core.logger import logger
 from app.database.crud.user import UserService
 from app.database.db.session import get_db
 from app.main import bot
+from app.services.forum_publish_service import ForumPublishService
 from app.services.process_posts.post_process_service import PostProcessService
 from app.services.rabbit.consumer_base import RabbitBaseService
 
@@ -78,43 +76,7 @@ class RabbitPostsBotConsumer(RabbitBaseService):
 
 
         elif route == PostsBotRoutingKeys.POSTS_SERVICE_PUBLISH_POST:
-            texts_by_language = payload.get("texts_by_language")
-            images = payload.get("images")
-            if not texts_by_language or not images:
-                logger.error(
-                    "publish_post payload missing texts_by_language or images",
-                    extra={"keys": list(payload.keys())},
-                )
-                return
-            thread_ids = settings.forum_topic_thread_ids_ordered
-            if len(texts_by_language) != len(thread_ids):
-                logger.error(
-                    "texts_by_language length does not match configured topic count",
-                    extra={"got": len(texts_by_language), "expected": len(thread_ids)},
-                )
-                return
-            chat_id = settings.TELEGRAM_FORUM_CHAT_ID
-            for entry, message_thread_id in zip(texts_by_language, thread_ids):
-                text = entry.get("text")
-                lang = entry.get("lang")
-                media = []
-                for i, url in enumerate(images[:5]):
-                    if i == 0:
-                        media.append(InputMediaPhoto(media=url, caption=text, parse_mode="HTML"))
-                    else:
-                        media.append(InputMediaPhoto(media=url))
-                try:
-                    await bot.send_media_group(
-                        chat_id=chat_id,
-                        media=media,
-                        message_thread_id=message_thread_id,
-                    )
-                except Exception as e:
-                    logger.exception(
-                        "Forum publish failed for language topic",
-                        extra={"lang": lang, "message_thread_id": message_thread_id, "error": str(e)},
-                    )
-                await asyncio.sleep(0.05)
+            await ForumPublishService().publish(payload)
         elif route == PostsBotRoutingKeys.POSTS_SERVICE_ERROR:
             async with get_db() as db:
                 user_service = UserService(db)

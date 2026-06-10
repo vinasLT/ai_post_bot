@@ -1,4 +1,6 @@
 import asyncio
+import logging
+import sys
 import time
 from datetime import datetime, timezone
 from loguru import logger as loguru_logger
@@ -8,6 +10,37 @@ from functools import wraps
 from typing import Optional, Dict, Any
 
 from app.config import settings, Environment
+
+_BOUND_LOG_KEYS = frozenset({"service", "environment"})
+
+
+def _format_extra_fields(extra: dict) -> str:
+    items = {k: v for k, v in extra.items() if k not in _BOUND_LOG_KEYS}
+    if not items:
+        return ""
+    return " | " + ", ".join(f"{k}={v!r}" for k, v in items.items())
+
+
+class DevConsoleLogger:
+    """Human-readable console output for local development."""
+
+    def sink(self, message) -> None:
+        record = message.record
+        time_str = record["time"].strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        line = (
+            f"{time_str} | {record['level'].name:8} | "
+            f"{record['name']}:{record['function']}:{record['line']} | "
+            f"{record['message']}"
+        )
+        extra = record.get("extra")
+        if extra:
+            line += _format_extra_fields(extra)
+
+        print(line, file=sys.stderr, flush=True)
+
+        exc = record.get("exception")
+        if exc and exc.traceback:
+            print(exc.traceback, file=sys.stderr, flush=True)
 
 
 class ConsoleLogger:
@@ -168,21 +201,61 @@ def setup_logging(
         service_name: str,
         environment: str,
         level: str = "INFO",
-        include_extra: bool = True
+        include_extra: bool = True,
+        debug: bool = False,
 ):
-    console_logger = ConsoleLogger(
-        service_name=service_name,
-        environment=environment,
-        include_extra=include_extra
-    )
     loguru_logger.remove()
-    loguru_logger.add(console_logger.sink, format="{message}", level=level, backtrace=True, diagnose=True, enqueue=True)
+    if debug:
+        sink = DevConsoleLogger().sink
+    else:
+        sink = ConsoleLogger(
+            service_name=service_name,
+            environment=environment,
+            include_extra=include_extra,
+        ).sink
+
+    loguru_logger.add(
+        sink,
+        format="{message}",
+        level=level,
+        backtrace=True,
+        diagnose=True,
+        enqueue=True,
+    )
     return loguru_logger.bind(service=service_name, environment=environment)
+
+
+class InterceptHandler(logging.Handler):
+    """Route stdlib logging (e.g. aiogram) into loguru."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            level = loguru_logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        frame, depth = logging.currentframe(), 2
+        while frame and frame.f_code.co_filename == logging.__file__:
+            frame = frame.f_back
+            depth += 1
+
+        loguru_logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+
+def intercept_stdlib_logging(level: int | None = None) -> None:
+    if level is None:
+        level = logging.DEBUG if settings.DEBUG else logging.INFO
+    logging.basicConfig(handlers=[InterceptHandler()], level=level, force=True)
+    for name in ("aiogram", "aiohttp"):
+        lib_logger = logging.getLogger(name)
+        lib_logger.handlers = [InterceptHandler()]
+        lib_logger.propagate = False
 
 
 logger = setup_logging(
     service_name=settings.APP_NAME,
     environment="dev" if settings.ENVIRONMENT == Environment.DEVELOPMENT else "prod",
     level="DEBUG" if settings.DEBUG else "INFO",
-    include_extra=True
+    include_extra=True,
+    debug=settings.DEBUG,
 )
