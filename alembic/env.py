@@ -4,14 +4,14 @@ from sqlalchemy import pool
 
 from alembic import context
 
-from app.config import settings
+from app.config import settings, Environment
 from app.database.models import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-if settings.DEBUG:
+if settings.use_sqlite_db:
     SQLALCHEMY_DATABASE_URL = 'sqlite:///db.sqlite'
 else:
     SQLALCHEMY_DATABASE_URL = f'postgresql://{settings.DB_USER}:{settings.DB_PASS}@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}'

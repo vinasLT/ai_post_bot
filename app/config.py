@@ -73,6 +73,10 @@ class Settings(BaseSettings):
     def enable_docs(self) -> bool:
         return self.ENVIRONMENT in [Environment.DEVELOPMENT]
 
+    @property
+    def use_sqlite_db(self) -> bool:
+        return self.ENVIRONMENT == Environment.DEVELOPMENT
+
     # Database
     DB_HOST: str = "localhost"
     DB_PORT: str = "5432"
