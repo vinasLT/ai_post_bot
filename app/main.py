@@ -55,6 +55,7 @@ async def main():
         bot_id=bot_user.id,
         environment=settings.ENVIRONMENT.value,
         debug=settings.DEBUG,
+        db_backend="sqlite" if settings.use_sqlite_db else "postgresql",
     )
 
     storage = MemoryStorage()

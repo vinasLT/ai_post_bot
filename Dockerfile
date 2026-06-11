@@ -33,7 +33,9 @@ RUN poetry install --only main --no-root
 
 # Копирование исходного кода
 COPY . /app
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app \
+    ENVIRONMENT=production \
+    DEBUG=false
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
 CMD ["python", "-m", "app.main"]
