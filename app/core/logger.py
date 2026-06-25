@@ -242,6 +242,19 @@ class InterceptHandler(logging.Handler):
         loguru_logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
 
+_QUIET_STDLIB_LOGGERS = (
+    "aiogram",
+    "aiohttp",
+    "sqlalchemy",
+    "sqlalchemy.engine",
+    "sqlalchemy.engine.Engine",
+    "sqlalchemy.pool",
+    "sqlalchemy.orm",
+    "aiosqlite",
+    "sqlite3",
+)
+
+
 def intercept_stdlib_logging(level: int | None = None) -> None:
     if level is None:
         level = logging.DEBUG if settings.DEBUG else logging.INFO
@@ -250,6 +263,10 @@ def intercept_stdlib_logging(level: int | None = None) -> None:
         lib_logger = logging.getLogger(name)
         lib_logger.handlers = [InterceptHandler()]
         lib_logger.propagate = False
+    for name in _QUIET_STDLIB_LOGGERS:
+        if name in ("aiogram", "aiohttp"):
+            continue
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 logger = setup_logging(

@@ -7,7 +7,7 @@ from aiogram.types import InputMediaPhoto
 from app.database.crud.user import UserService
 from app.database.db.session import get_db
 from app.keyboards.inline.post_this_post import post_this_post_keyboard
-from app.main import bot
+from app.core.bot import bot
 
 
 class PostProcessService:

@@ -1,14 +1,13 @@
 import asyncio
 from typing import Any, Awaitable, Callable
 
-from aiogram import Bot, Dispatcher
+from aiogram import Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
 from aiogram.types import TelegramObject
 from aiogram import BaseMiddleware
 
 from app.config import settings
+from app.core.bot import bot
 from app.core.logger import intercept_stdlib_logging, logger
 from app.handlers.generate_invite_code import invite_code_router
 from app.handlers.generate_post_manually import generate_post_manually_router
@@ -41,9 +40,6 @@ class UpdateLoggingMiddleware(BaseMiddleware):
                 user_id=getattr(from_user, "id", None),
             )
             raise
-
-
-bot = Bot(token=settings.TELEGRAM_BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN))
 
 
 async def main():

@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, TYPE_CHECKING
 
 import grpc
 
@@ -8,6 +8,9 @@ from app.config import settings
 from app.core.logger import logger
 from app.rpc_client.base_client import BaseRpcClient, T
 from app.rpc_client.gen.python.auction.v1.lot_pb2 import Lot
+
+if TYPE_CHECKING:
+    from app.services.post_generation.lang_chain_agent.types import Filters
 
 # Ensure generated proto packages (auction, carfax, payment) are importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'gen', 'python'))
@@ -29,6 +32,49 @@ class ApiRpcClient(BaseRpcClient[lot_pb2_grpc.LotServiceStub]):
     async def get_lot_by_vin_or_lot_id(self, vin_or_lot_id: str, site: str = None) -> lot_pb2.GetLotByVinOrLotResponse:
         data = lot_pb2.GetLotByVinOrLotRequest(vin_or_lot_id=vin_or_lot_id, site=site)
         return await self._execute_request(self.stub.GetLotByVinOrLot, data)
+
+    async def get_current_lots_with_filters(
+        self,
+        filters: "Filters",
+        vehicle_type: str = "Automobile",
+        size: int = 20,
+        page: int = 1,
+    ) -> lot_pb2.GetCurrentLotsByFiltersResponse:
+        data = lot_pb2.GetCurrentLotsByFiltersRequest(
+            site=filters.site,
+            make=filters.make,
+            model=filters.model,
+            year_from=filters.year_from,
+            year_to=filters.year_to,
+            vehicle_type=vehicle_type,
+            status=filters.status,
+            transmission=filters.transmission,
+            odometer_min=filters.odo_from,
+            odometer_max=filters.odo_to,
+            document=filters.document,
+            drive=filters.drive,
+            auction_date_from=filters.auction_date_from,
+            auction_date_to=filters.auction_date_to,
+            size=int(size),
+            page=int(page),
+        )
+        return await self._execute_request(self.stub.GetCurrentLotsByFilters, data)
+
+    async def get_current_lots_by_filters_generator(
+        self,
+        filters: "Filters",
+        vehicle_type: str = "Automobile",
+        start_page: int = 1,
+        pages_limit: int = 20,
+    ) -> AsyncGenerator[list[Lot], Any]:
+        results = await self.get_current_lots_with_filters(filters, vehicle_type, page=start_page)
+        pages = results.pagination.pages
+        logger.debug(f"Pages available: {pages}")
+        yield list(results.lot)
+        pages_to_process = min(pages, pages_limit)
+        for page in range(start_page + 1, pages_to_process + 1):
+            result = await self.get_current_lots_with_filters(filters, vehicle_type, page=page)
+            yield list(result.lot)
 
     async def get_current_bid(self, lot_id: int, site: str) -> lot_pb2.GetCurrentBidResponse:
         data = lot_pb2.GetCurrentBidRequest(lot_id=lot_id, site=site)

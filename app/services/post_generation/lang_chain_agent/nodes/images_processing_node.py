@@ -1,0 +1,104 @@
+import asyncio
+import json
+from typing import Any, Dict
+
+from asyncio import Semaphore
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langgraph.runtime import Runtime
+
+from app.core.logger import log_async_execution_time
+from app.database.crud.post import PostService
+from app.database.db.session import get_async_db
+from app.services.post_generation.lang_chain_agent.schemas import ImageProcessingSchema, ImageProcessingResult
+from app.services.post_generation.lang_chain_agent.state_context import AgentsRuntimeContext, AgentsState
+from app.services.post_generation.lang_chain_agent.llm_factory import get_image_processing_llm
+from app.services.post_generation.lang_chain_agent.tools import get_instructions
+from app.services.post_generation.lang_chain_agent.utils import GeneratePostUtils
+
+
+def _build_image_processing_messages(title: str, primary_damage: str, image_message: HumanMessage) -> list:
+    return [
+        SystemMessage(content=get_instructions("image_analyzer.md")),
+        image_message,
+        HumanMessage(
+            content=(
+                "Analyze this 5 lots and make little summary based on it (one sentence)\n"
+                "Additional info about vehicle:\n"
+                f"Name of vehicle: {title}\n"
+                f"Primary Damage: {primary_damage}\n"
+            )
+        ),
+    ]
+
+
+@log_async_execution_time('Image processing')
+async def images_processing_agent(state: AgentsState, runtime: Runtime[AgentsRuntimeContext]) -> Dict[str, Any]:
+    await GeneratePostUtils.edit_message_for_user(
+        message_id=runtime.context['editable_message_id'],
+        text="🔄 Processing images...\n"
+             "⏳ This phase usually takes 1 min\n"
+             "▶️ Approximately 5-7 min left",
+        user_uuid=runtime.context['user_uuid']
+    )
+    request_id = runtime.context["request_id"]
+    chose_lot_ids = state.get("chose_lot_ids", [])
+
+    async with get_async_db() as db:
+        posts_service = PostService(db)
+        posts = await posts_service.get_posts_by_lot_ids(chose_lot_ids, request_id)
+
+    semaphore = Semaphore(10)
+    results: list[ImageProcessingResult] = []
+
+    async def analyze_post(post) -> None:
+        async with semaphore:
+            if not post.images:
+                return
+            images_urls = [u.strip() for u in post.images.split(",") if u.strip()][:5]
+            if not images_urls:
+                return
+
+            image_message = HumanMessage(
+                content=[{"type": "image_url", "image_url": {"url": url}} for url in images_urls]
+            )
+
+            prompt_messages = _build_image_processing_messages(
+                title=post.title or "",
+                primary_damage=post.primary_damage or "",
+                image_message=image_message,
+            )
+
+            llm = get_image_processing_llm()
+            structured_llm = llm.with_structured_output(ImageProcessingSchema)
+            response: ImageProcessingSchema = await structured_llm.ainvoke(prompt_messages)
+
+            results.append(ImageProcessingResult(lot_id=post.lot_id, descriptions=response))
+
+    tasks = [asyncio.create_task(analyze_post(post)) for post in posts]
+    await asyncio.gather(*tasks)
+
+    ai_msg = AIMessage(content=str([result.model_dump_json() for result in results]))
+    return {"lots_images_descriptions": results, "messages": [ai_msg],
+            'cumulated_images_description': results + state.get('cumulated_images_description', [])}
+
+class DummyRuntime:
+    def __init__(self, context: dict[str, Any]):
+        self.context = context
+
+async def _main() -> None:
+    runtime = DummyRuntime({"request_id": 4})
+    state: Dict[str, Any] = {}
+    result = await images_processing_agent(state, runtime)  # type: ignore[arg-type]
+    if "lots_images_descriptions" in result:
+        printable = {
+            "lots_images_descriptions": [
+                {"lot_id": r.lot_id, "descriptions": json.loads(r.descriptions.model_dump_json()) if hasattr(r.descriptions, "model_dump_json") else r.descriptions}  # type: ignore[attr-defined]
+                for r in result["lots_images_descriptions"]
+            ]
+        }
+        print(json.dumps(printable, ensure_ascii=False, indent=2))
+    else:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+
+if __name__ == "__main__":
+    asyncio.run(_main())

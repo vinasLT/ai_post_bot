@@ -8,7 +8,8 @@ from app.keyboards.inline.choose_auction import choose_auction_keyboard, ChooseA
 from app.keyboards.inline.main_menu import MainMenuActions, MainMenuCallback
 from app.keyboards.inline.post_this_post import PostThisPostCallback, GeneratePostImageCallback
 from app.rpc_client.auction_api import ApiRpcClient
-from app.services.rabbit.pulisher import RabbitMQPublisher
+from app.services.post_generation.job_service import enqueue_generation_job
+from app.database.models.generation_job import GenerationJobType
 from app.states.filter_states import FilterStates
 from app.states.generate_post_manually import GenerateManuallyStates
 
@@ -60,9 +61,7 @@ async def process_lot_id(query: CallbackQuery, callback_data: ChooseAuctionCallb
             'user_uuid': user.user_uuid,
             'message_id': generating_message.message_id
         }
-        publisher = RabbitMQPublisher()
-        await publisher.connect()
-        await publisher.publish('posts_bot.generate_post.manually', payload)
+        await enqueue_generation_job(GenerationJobType.MANUALLY, payload, user.user_uuid)
         await query.answer()
         return
 
@@ -98,9 +97,7 @@ async def save_comment(message: Message, state: FSMContext):
         'request_id': request_id,
         'editable_message_id': editable_message.message_id,
     }
-    publisher = RabbitMQPublisher()
-    await publisher.connect()
-    await publisher.publish('posts_bot.generate_post.manually.add_comment', payload)
+    await enqueue_generation_job(GenerationJobType.ADD_COMMENT, payload, user.user_uuid)
 
     await state.clear()
 
@@ -119,9 +116,7 @@ async def save_comment(query: CallbackQuery, callback_data: PostThisPostCallback
         'editable_message_id': editable_message.message_id
     }
 
-    publisher = RabbitMQPublisher()
-    await publisher.connect()
-    await publisher.publish('posts_bot.generate_post.manually.generate_image', payload)
+    await enqueue_generation_job(GenerationJobType.GENERATE_IMAGE, payload, user.user_uuid)
 
     await query.answer()
 

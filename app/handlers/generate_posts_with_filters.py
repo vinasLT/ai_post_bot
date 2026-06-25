@@ -12,7 +12,8 @@ from app.keyboards.inline.post_generator_filters import get_default_filters, cre
     FilterCallback, FilterActions, create_filter_options_keyboard, FilterTypes, \
     create_summary_text, back_to_filters_keyboard, get_human_readable_filter_type, validate_filter_value, \
     transform_auction_date_to_range
-from app.services.rabbit.pulisher import RabbitMQPublisher
+from app.services.post_generation.job_service import enqueue_generation_job
+from app.database.models.generation_job import GenerationJobType
 from app.states.filter_states import FilterStates
 
 generate_posts_with_filters_router = Router()
@@ -258,8 +259,6 @@ async def confirm_and_generate(query: CallbackQuery, callback_data: FilterCallba
         user_service = UserService(db)
         user = await user_service.get_by_telegram_id(str(query.from_user.id))
 
-    publisher = RabbitMQPublisher()
-    await publisher.connect()
     auction_date = filters.get('auction_date')
     filters.update(transform_auction_date_to_range(auction_date))
     payload = {
@@ -267,8 +266,7 @@ async def confirm_and_generate(query: CallbackQuery, callback_data: FilterCallba
         'editable_message_id': query.message.message_id,
         'user_uuid': user.user_uuid
     }
-    await publisher.publish(routing_key='posts_bot.generate_post.with_filters', payload=payload)
-    await publisher.close()
+    await enqueue_generation_job(GenerationJobType.WITH_FILTERS, payload, user.user_uuid)
 
 
 async def is_all_required_filters(message: Message, filters: dict) -> bool:

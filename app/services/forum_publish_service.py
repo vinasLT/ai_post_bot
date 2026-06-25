@@ -6,8 +6,15 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InputMediaPhoto
 
 from app.config import settings
+from app.core.bot import bot
 from app.core.logger import logger
-from app.main import bot
+
+_forum_publish_lock = asyncio.Lock()
+
+
+def _pace_seconds_after_media_group(media_count: int) -> float:
+    """Delay between topic posts in the same forum (~20 msgs/min group limit)."""
+    return max(1.0, media_count * settings.FORUM_PUBLISH_SECONDS_PER_IMAGE)
 
 
 class ForumPublishService:
@@ -25,21 +32,24 @@ class ForumPublishService:
         topic_by_lang = settings.forum_topic_ids_by_lang
         chat_id = settings.TELEGRAM_FORUM_CHAT_ID
 
-        for entry in texts_by_language:
-            lang = (entry.get("lang") or "").lower()
-            text = entry.get("text") or ""
-            message_thread_id = topic_by_lang.get(lang)
+        async with _forum_publish_lock:
+            for entry in texts_by_language:
+                lang = (entry.get("lang") or "").lower()
+                text = entry.get("text") or ""
+                message_thread_id = topic_by_lang.get(lang)
 
-            if message_thread_id is None:
-                logger.warning(
-                    "Unknown language in publish_post payload, skipping",
-                    extra={"lang": lang, "known_langs": list(topic_by_lang.keys())},
+                if message_thread_id is None:
+                    logger.warning(
+                        "Unknown language in publish_post payload, skipping",
+                        extra={"lang": lang, "known_langs": list(topic_by_lang.keys())},
+                    )
+                    continue
+
+                media = self._build_media_group(images, text)
+                await self._send_to_topic(
+                    chat_id, media, message_thread_id, lang, images, text
                 )
-                continue
-
-            media = self._build_media_group(images, text)
-            await self._send_to_topic(chat_id, media, message_thread_id, lang, images, text)
-            await asyncio.sleep(0.05)
+                await asyncio.sleep(_pace_seconds_after_media_group(len(media)))
 
     def _build_media_group(
         self,
@@ -84,36 +94,25 @@ class ForumPublishService:
             if "can't parse entities" not in str(e).lower():
                 logger.exception(
                     "Forum publish failed for language topic",
-                    extra={"lang": lang, "message_thread_id": message_thread_id, "error": str(e)},
+                    extra={
+                        "lang": lang,
+                        "message_thread_id": message_thread_id,
+                        "error": str(e),
+                    },
                 )
-                return
+                raise
 
             plain_media = self._build_media_group(images, text, parse_mode=None)
-            try:
-                await bot.send_media_group(
-                    chat_id=chat_id,
-                    media=plain_media,
-                    message_thread_id=message_thread_id,
-                )
-                logger.info(
-                    "Forum publish succeeded with plain text fallback",
-                    extra={
-                        "lang": lang,
-                        "message_thread_id": message_thread_id,
-                        "image_count": len(plain_media),
-                    },
-                )
-            except Exception as retry_error:
-                logger.exception(
-                    "Forum publish failed after plain text fallback",
-                    extra={
-                        "lang": lang,
-                        "message_thread_id": message_thread_id,
-                        "error": str(retry_error),
-                    },
-                )
-        except Exception as e:
-            logger.exception(
-                "Forum publish failed for language topic",
-                extra={"lang": lang, "message_thread_id": message_thread_id, "error": str(e)},
+            await bot.send_media_group(
+                chat_id=chat_id,
+                media=plain_media,
+                message_thread_id=message_thread_id,
+            )
+            logger.info(
+                "Forum publish succeeded with plain text fallback",
+                extra={
+                    "lang": lang,
+                    "message_thread_id": message_thread_id,
+                    "image_count": len(plain_media),
+                },
             )

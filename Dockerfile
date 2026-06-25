@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     pkg-config \
     postgresql-client \
+    supervisor \
   && rm -rf /var/lib/apt/lists/*
 
 # Установка Poetry через pip
@@ -38,4 +39,4 @@ ENV PYTHONPATH=/app \
     DEBUG=false
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
-CMD ["python", "-m", "app.main"]
+CMD ["supervisord", "-n", "-c", "/app/supervisord.conf"]
