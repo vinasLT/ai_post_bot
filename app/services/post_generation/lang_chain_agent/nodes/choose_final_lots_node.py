@@ -23,9 +23,8 @@ def _build_choose_final_lots_messages(
             content=(
                 "Choose the best lots based on the following descriptions:\n"
                 f"{descriptions_for_lots}\n\n"
-                f"Return up to {final_lots_amount} lots, ordered from best to worst.\n"
-                f"Aim for at least {min_lots_amount} lots when that many are suitable.\n"
-                "Return every suitable lot you find, even if the count is below the maximum.\n"
+                f"Return between {min_lots_amount} and {final_lots_amount} lots, ordered from best to worst.\n"
+                "Each lot_id must appear exactly once.\n"
                 "Do not request more inventory; send the best available lots from the list below."
             )
         ),
@@ -96,7 +95,7 @@ async def choose_final_lots_node(state: AgentsState, runtime: Runtime[AgentsRunt
         min_lots_amount,
     )
 
-    response_schema: type[BaseModel] = get_final_lots_response_schema(final_lots_amount)
+    response_schema: type[BaseModel] = get_final_lots_response_schema(min_lots_amount, final_lots_amount)
     llm = get_choose_final_lots_llm()
     structured_llm = llm.with_structured_output(response_schema)
     response = await structured_llm.ainvoke(messages)

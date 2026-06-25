@@ -61,19 +61,15 @@ def get_agent_result_parser(lots_min: int, lots_max: int) -> type[AgentResult]:
     return LimitedAgentResult
 
 
-def get_final_lots_response_schema(max_lots: int) -> type[BaseModel]:
-    """Final lot selection structured output.
-
-    Uses min_length=1 so the model is never forced to return exactly max_lots.
-    The minimum delivery count (e.g. 10) is enforced in the graph send step.
-    """
+def get_final_lots_response_schema(min_lots: int, max_lots: int) -> type[BaseModel]:
+    """Final lot selection structured output with min_lots <= count <= max_lots."""
 
     class FinalLotsResponse(BaseModel):
         model_config = ConfigDict(extra="forbid")
 
         lot_ids: list[int] = Field(
             ...,
-            min_length=1,
+            min_length=min_lots,
             max_length=max_lots,
             description="Unique lot ids, ordered best to worst",
         )
@@ -96,6 +92,10 @@ def get_final_lots_response_schema(max_lots: int) -> type[BaseModel]:
                 seen.add(lot_id)
                 unique_ids.append(lot_id)
             self.lot_ids = unique_ids
+            if len(self.lot_ids) < min_lots:
+                raise ValueError(
+                    f"lot_ids must contain at least {min_lots} unique values after deduplication"
+                )
             return self
 
     return FinalLotsResponse
