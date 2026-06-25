@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict, conlist, model_validator
+from pydantic import BaseModel, Field, ConfigDict, ValidationError, model_validator
 
 
 class LotObject(BaseModel):
@@ -99,3 +99,23 @@ def get_final_lots_response_schema(min_lots: int, max_lots: int) -> type[BaseMod
             return self
 
     return FinalLotsResponse
+
+
+def coerce_structured_model(response: BaseModel | dict, schema_cls: type[BaseModel]) -> BaseModel:
+    """Normalize langchain structured output to a pydantic model instance."""
+    if isinstance(response, schema_cls):
+        return response
+    if isinstance(response, BaseModel):
+        return schema_cls.model_validate(response.model_dump())
+    if isinstance(response, dict):
+        return schema_cls.model_validate(response)
+    raise TypeError(f"Unexpected structured output type: {type(response)!r}")
+
+
+def extract_lot_ids(response: BaseModel | dict, schema_cls: type[BaseModel]) -> list[int]:
+    """Return lot_ids from a structured final-lots response."""
+    parsed = coerce_structured_model(response, schema_cls)
+    lot_ids = getattr(parsed, "lot_ids", None)
+    if not isinstance(lot_ids, list):
+        raise ValueError("Structured response is missing a valid lot_ids list")
+    return lot_ids

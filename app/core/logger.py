@@ -95,6 +95,27 @@ class ConsoleLogger:
         print(json.dumps(doc, ensure_ascii=False), flush=True)
 
 
+def _log_failure(
+    _logger,
+    process_name: str,
+    execution_time: float,
+    exc: Exception,
+    extra: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Log failure without loguru treating braces in exception text as format fields."""
+    _logger.bind(
+        execution_time=execution_time,
+        process_name=process_name,
+        error_type=type(exc).__name__,
+        **(extra or {}),
+    ).error(
+        "{} failed after {:.3f} sec: {}",
+        process_name,
+        execution_time,
+        str(exc),
+    )
+
+
 @asynccontextmanager
 async def async_timer(
         process_name: str,
@@ -116,13 +137,7 @@ async def async_timer(
         end_time = time.perf_counter()
         execution_time = end_time - start_time
 
-        _logger.error(
-            f"{process_name} failed after {execution_time:.3f} sec: {str(e)}",
-            execution_time=execution_time,
-            process_name=process_name,
-            error_type=type(e).__name__,
-            **_extra
-        )
+        _log_failure(_logger, process_name, execution_time, e, _extra)
         raise
     else:
         end_time = time.perf_counter()
@@ -161,12 +176,12 @@ class AsyncTimer:
         execution_time = end_time - self.start_time
 
         if exc_type:
-            self.logger.error(
-                f"{self.process_name} failed after {execution_time:.3f} sec: {str(exc_val)}",
-                execution_time=execution_time,
-                process_name=self.process_name,
-                error_type=exc_type.__name__,
-                **self.extra_data
+            _log_failure(
+                self.logger,
+                self.process_name,
+                execution_time,
+                exc_val,
+                self.extra_data,
             )
         else:
             self.logger.info(

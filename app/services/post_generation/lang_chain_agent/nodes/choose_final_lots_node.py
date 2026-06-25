@@ -1,10 +1,13 @@
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, SystemMessage
 from langgraph.runtime import Runtime
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.core.logger import log_async_execution_time
 from app.services.post_generation.lang_chain_agent.llm_factory import get_choose_final_lots_llm
-from app.services.post_generation.lang_chain_agent.schemas import get_final_lots_response_schema
+from app.services.post_generation.lang_chain_agent.schemas import (
+    coerce_structured_model,
+    get_final_lots_response_schema,
+)
 from app.services.post_generation.lang_chain_agent.state_context import AgentsState, AgentsRuntimeContext
 from app.services.post_generation.lang_chain_agent.tools import get_instructions
 from app.services.post_generation.lang_chain_agent.utils import GeneratePostUtils
@@ -29,6 +32,55 @@ def _build_choose_final_lots_messages(
             )
         ),
     ]
+
+
+async def _invoke_final_lots_llm(
+    messages: list,
+    response_schema: type[BaseModel],
+    *,
+    min_lots_amount: int,
+    max_attempts: int = 3,
+) -> BaseModel:
+    llm = get_choose_final_lots_llm()
+    structured_llm = llm.with_structured_output(response_schema)
+    feedback: list[HumanMessage] = []
+
+    for attempt in range(max_attempts):
+        try:
+            response = await structured_llm.ainvoke(messages + feedback)
+            return coerce_structured_model(response, response_schema)
+        except ValidationError as exc:
+            if attempt + 1 >= max_attempts:
+                raise ValueError(
+                    f"Final lot selection returned an invalid list. "
+                    f"Need between {min_lots_amount} and the available pool size. "
+                    f"Details: {exc.errors()[0]['msg'] if exc.errors() else exc}"
+                ) from exc
+            feedback.append(
+                HumanMessage(
+                    content=(
+                        f"Your previous answer failed validation: {exc}. "
+                        f"Return between {min_lots_amount} unique lot_ids from the provided list."
+                    )
+                )
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            if attempt + 1 >= max_attempts:
+                raise ValueError(
+                    "Final lot selection returned an unexpected response format. "
+                    "Please try generating again."
+                ) from exc
+            feedback.append(
+                HumanMessage(
+                    content=(
+                        "Your previous answer was malformed. "
+                        f"Return a JSON object with a lot_ids array containing "
+                        f"between {min_lots_amount} unique integer ids from the list above."
+                    )
+                )
+            )
+
+    raise ValueError("Final lot selection failed after several attempts.")
 
 
 @log_async_execution_time("Choose final lots")
@@ -95,10 +147,15 @@ async def choose_final_lots_node(state: AgentsState, runtime: Runtime[AgentsRunt
         min_lots_amount,
     )
 
-    response_schema: type[BaseModel] = get_final_lots_response_schema(min_lots_amount, final_lots_amount)
-    llm = get_choose_final_lots_llm()
-    structured_llm = llm.with_structured_output(response_schema)
-    response = await structured_llm.ainvoke(messages)
+    response_schema = get_final_lots_response_schema(min_lots_amount, final_lots_amount)
+    try:
+        response = await _invoke_final_lots_llm(
+            messages,
+            response_schema,
+            min_lots_amount=min_lots_amount,
+        )
+    except ValueError as exc:
+        return {"is_error": True, "error_message": str(exc)}
 
     ai_msg = AIMessage(content=response.model_dump_json())
 
