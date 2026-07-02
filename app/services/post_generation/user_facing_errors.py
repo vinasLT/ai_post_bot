@@ -46,7 +46,7 @@ def lot_chooser_failed_message(
 
     if "no matching posts" in errors_text:
         return (
-            f"Selected lots for {vehicle} could not be loaded from our database. "
+            f"Lot selection for {vehicle} did not match the cars we saved for this request. "
             f"Please try generating again."
         )
 

@@ -56,6 +56,45 @@ def _build_lot_chooser_base_messages(
     ]
 
 
+def _has_invalid_lot_ids(parsed: AgentResult) -> bool:
+    if not parsed.lots:
+        return False
+    if any(lot.lot_id <= 0 for lot in parsed.lots):
+        return True
+    if parsed.error_message and "placeholder" in parsed.error_message.lower():
+        return True
+    return False
+
+
+async def _validate_lot_ids_or_raise(
+    post_service: PostService,
+    request_id: int,
+    lot_ids: list[int],
+) -> None:
+    matched, missing = await post_service.validate_lot_ids_for_request(request_id, lot_ids)
+    if not matched or missing:
+        saved = await post_service.get_lot_ids_for_request(request_id)
+        raise ValueError(
+            f"No matching posts in the database. Missing lot_ids: {sorted(missing)}. "
+            f"Saved lot_ids: {sorted(saved)}"
+        )
+
+
+async def _lot_id_validation_feedback(
+    request_id: int,
+    error: ValueError,
+) -> HumanMessage:
+    async with get_async_db() as db:
+        post_service = PostService(db)
+        saved = sorted(await post_service.get_lot_ids_for_request(request_id))
+    return HumanMessage(
+        content=(
+            f"{error}. Valid saved lot_ids for this request: {saved}. "
+            "Return ONLY lot_ids from that list. Do not use placeholders."
+        )
+    )
+
+
 async def _finalize_lot_chooser_result(
     parsed: AgentResult,
     state: AgentsState,
@@ -67,6 +106,9 @@ async def _finalize_lot_chooser_result(
 
     async with get_async_db() as db:
         post_service = PostService(db)
+        await _validate_lot_ids_or_raise(
+            post_service, runtime.context["request_id"], all_cumulated_lot_ids
+        )
         posts = await post_service.left_only_this_lot_ids(
             request_filter_id=runtime.context["request_id"], lot_ids=all_cumulated_lot_ids
         )
@@ -172,14 +214,27 @@ async def lot_chooser_agent_node(state: AgentsState, runtime: Runtime[AgentsRunt
             messages = list(base_messages) + [ai, correction_guard] + feedback_messages
             continue
 
+        if _has_invalid_lot_ids(parsed):
+            validation_errors.append("Invalid lot_ids in response (lot_id<=0 or placeholder).")
+            feedback_messages.append(
+                HumanMessage(
+                    content=(
+                        "Your response contained invalid lot_ids (lot_id<=0 or placeholders). "
+                        f"Return every qualifying lot you found (up to {max_lots}) with unique positive lot_ids "
+                        "from tool results only."
+                    )
+                )
+            )
+            messages = list(base_messages) + [ai, correction_guard] + feedback_messages
+            continue
+
         try:
             return await _finalize_lot_chooser_result(parsed, state, runtime)
-        except ValueError:
-            validation_errors.append("No matching posts in the database for the returned lot_ids.")
-            error_message = HumanMessage(
-                content="No matching posts in the database. Use tools to fetch lots, then return only lot_ids that exist."
+        except ValueError as e:
+            validation_errors.append(str(e))
+            feedback_messages.append(
+                await _lot_id_validation_feedback(runtime.context["request_id"], e)
             )
-            feedback_messages.append(error_message)
             messages = list(base_messages) + [ai, correction_guard] + feedback_messages
             continue
         except Exception as e:
@@ -225,7 +280,13 @@ async def lot_chooser_agent_node(state: AgentsState, runtime: Runtime[AgentsRunt
                 "messages": [AIMessage(content=parsed_final.model_dump_json())],
                 "lot_chooser_result": parsed_final,
             }
-        return await _finalize_lot_chooser_result(parsed_final, state, runtime)
+        if _has_invalid_lot_ids(parsed_final):
+            validation_errors.append("Invalid lot_ids in response (lot_id<=0 or placeholder).")
+        else:
+            try:
+                return await _finalize_lot_chooser_result(parsed_final, state, runtime)
+            except ValueError as e:
+                validation_errors.append(str(e))
     except Exception as e:
         validation_errors.append(str(e))
 

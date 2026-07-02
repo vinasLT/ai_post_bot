@@ -84,6 +84,21 @@ class PostService(BaseService[Post, PostCreate, PostUpdate]):
         stmt = select(Post).where(Post.request_id == request_id)
         result = await self.session.execute(stmt)
         return result.scalars().all()
+
+    async def get_lot_ids_for_request(self, request_id: int) -> set[int]:
+        stmt = select(Post.lot_id).where(Post.request_id == request_id)
+        result = await self.session.execute(stmt)
+        return set(result.scalars().all())
+
+    async def validate_lot_ids_for_request(
+        self, request_id: int, lot_ids: list[int]
+    ) -> tuple[set[int], set[int]]:
+        saved = await self.get_lot_ids_for_request(request_id)
+        requested = set(lot_ids)
+        matched = requested & saved
+        missing = requested - saved
+        return matched, missing
+
     async def get_by_lot_id_and_request_id(self, lot_id: int, request_id: int) -> Post | None:
         stmt = select(Post).where(Post.lot_id == lot_id, Post.request_id == request_id).limit(1)
         result = await self.session.execute(stmt)

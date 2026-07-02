@@ -21,6 +21,13 @@ async def send_lots_to_user_node(state: AgentsState, runtime: Runtime[AgentsRunt
     user_uuid = runtime.context["user_uuid"]
     async with get_async_db() as db:
         post_service = PostService(db)
+        _, missing = await post_service.validate_lot_ids_for_request(request_id, final_lot_ids)
+        if missing:
+            saved = sorted(await post_service.get_lot_ids_for_request(request_id))
+            raise ValueError(
+                f"Final lot selection includes lot_ids not saved for this request: {sorted(missing)}. "
+                f"Saved lot_ids: {saved}"
+            )
         posts = await post_service.left_only_this_lot_ids(request_filter_id=request_id, lot_ids=final_lot_ids)
 
         posts = await GeneratePostUtils.update_average_price_for_posts(posts)
